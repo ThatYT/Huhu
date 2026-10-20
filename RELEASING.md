@@ -8,7 +8,7 @@ Repository: https://github.com/ThatYT/Huhu (public). This folder is the reposito
 
 The workflow builds on pull requests, pushes to main, and manual runs. It builds Windows natively on a Windows runner (including artwork/gaze validation) and macOS universally on a Mac runner. Artifacts are retained for review. A `v1.0.0` tag or a manual run with **Publish the 1.0.0 release** selected publishes a GitHub Release after both platform builds pass. Manual runs without that option only build artifacts.
 
-Before a public release, test Windows launch, dragging, gaze, menus, scaling across monitors, installer shortcuts, upgrade, and uninstall on Windows 10/11. The current Windows package was built on a Mac and has not had that runtime smoke test.
+CI checks Windows installation, installed-app startup, artwork/gaze data, Start Menu registration, uninstall registration, and removal. Full manual Windows desktop interaction still needs checks for dragging, gaze, menus, scaling across monitors, and upgrades on supported Windows versions.
 
 ## Release checklist
 

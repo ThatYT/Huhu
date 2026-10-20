@@ -14,7 +14,7 @@ A little plush white tiger for your desktop. Native macOS and Windows apps, with
 
 Portable ZIPs are also available. Extract the ZIP before running the app. Huhu does not add itself to login/startup items.
 
-These initial packages are development builds: Windows is not Authenticode-signed and the Mac app is locally signed, not Developer ID signed or notarized. Public distribution should add the owner's signing credentials. The Mac app and DMG were validated locally. The Windows executable and installer were cross-compiled on macOS; Windows desktop and install/uninstall testing remain pending. The included CI performs native Windows build and artwork/gaze checks once uploaded to GitHub.
+These initial packages are development builds: Windows is not Authenticode-signed and the Mac app is locally signed, not Developer ID signed or notarized. Public distribution should add the owner's signing credentials. Release packages are built natively on macOS and Windows by GitHub Actions. CI checks all 73 frames, sixteen gaze directions, and animation timing, and exercises Windows installation, installed-app startup, shortcuts, uninstall registration, and removal. Mac desktop controls were checked locally on Apple Silicon; full manual Windows desktop interaction and multi-monitor testing remain pending.
 
 ## Play
 
