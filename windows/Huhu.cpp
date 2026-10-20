@@ -16,13 +16,14 @@
 #include <memory>
 #include <string>
 #include "Animation.h"
+#include "Startup.h"
 
 using namespace Gdiplus;
 constexpr wchar_t windowClass[]=L"HuhuDesktopCompanion";
 constexpr UINT trayMessage=WM_APP+1;
 enum {ShowHide=100,Wave=103,Jump=104,Think=107,Review=108,Ask=106,Shy=105,
       RunRight=101,RunLeft=102,Follow=115,Pause=116,Small=185,Medium=220,Large=260,
-      Reset=122,Help=123,Quit=124};
+      Reset=122,Help=123,Quit=124,Startup=125};
 
 struct App {
     HWND window=nullptr;
@@ -161,6 +162,19 @@ struct App {
             clamp();render(std::max(lastRow,0),std::max(lastCol,0));save();break;
         }
         case Reset:reset();break;
+        case Startup: {
+            LSTATUS error=startup::set(!startup::registered());
+            if(error!=ERROR_SUCCESS) {
+                wchar_t* detail=nullptr;
+                FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER|FORMAT_MESSAGE_FROM_SYSTEM|FORMAT_MESSAGE_IGNORE_INSERTS,
+                    nullptr,DWORD(error),0,reinterpret_cast<wchar_t*>(&detail),0,nullptr);
+                std::wstring message=L"Couldn’t change Run at startup.\n\n";
+                message+=detail?detail:L"Please try again from an installed copy of Huhu.";
+                if(detail) LocalFree(detail);
+                MessageBoxW(window,message.c_str(),L"Huhu",MB_OK|MB_ICONERROR);
+            }
+            break;
+        }
         case Help:MessageBoxW(window,L"Drag to move. Click to wave. Double-click to jump.\n\nHuhu looks toward nearby pointers. Right-click or use the tray icon for size, pause, hide, and quit.\n\nNo ChatGPT, login, internet, or API key needed.",L"Huhu · 呼呼",MB_OK|MB_ICONINFORMATION);break;
         case Quit:DestroyWindow(window);break;
         }
@@ -182,6 +196,8 @@ struct App {
         AppendMenuW(sizes,MF_STRING|(scale==1.6?MF_CHECKED:0),Large,L"Large");
         AppendMenuW(m,MF_POPUP,reinterpret_cast<UINT_PTR>(sizes),L"Size");
         AppendMenuW(m,MF_STRING,Reset,L"Reset position");AppendMenuW(m,MF_SEPARATOR,0,nullptr);
+        AppendMenuW(m,MF_STRING|(startup::registered()?MF_CHECKED:0),Startup,L"Run at startup");
+        AppendMenuW(m,MF_SEPARATOR,0,nullptr);
         AppendMenuW(m,MF_STRING,Help,L"How to play");AppendMenuW(m,MF_STRING,Quit,L"Quit Huhu");
         POINT point{};GetCursorPos(&point);SetForegroundWindow(window);
         int chosen=TrackPopupMenu(m,TPM_RETURNCMD|TPM_RIGHTBUTTON,point.x,point.y,0,window,nullptr);
@@ -258,7 +274,9 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,LPWSTR,int) {
         App a;a.instance=instance;
         if(!a.loadArtwork()) {MessageBoxW(nullptr,L"Huhu’s embedded artwork could not be loaded.",L"Huhu",MB_OK|MB_ICONERROR);return 1;}
         int argc=0;LPWSTR* args=CommandLineToArgvW(GetCommandLineW(),&argc);
-        if(argc>=2 && std::wstring(args[1])==L"--self-test") {
+        if(argc>=2 && (std::wstring(args[1])==L"--startup-enable" || std::wstring(args[1])==L"--startup-disable")) {
+            result=startup::set(std::wstring(args[1])==L"--startup-enable")==ERROR_SUCCESS?0:1;
+        } else if(argc>=2 && std::wstring(args[1])==L"--self-test") {
             result=selfTest(a,argc>=3?args[2]:L"validation.json")?0:1;
         } else {
             HANDLE mutex=CreateMutexW(nullptr,TRUE,L"Local\\HuhuDesktopCompanion");

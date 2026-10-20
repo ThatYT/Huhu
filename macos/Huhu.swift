@@ -1,5 +1,6 @@
 import AppKit
 import QuartzCore
+import ServiceManagement
 
 let cellSize = NSSize(width: 192, height: 208)
 let frameCounts = [6, 8, 8, 4, 5, 8, 6, 6, 6, 8, 8]
@@ -91,7 +92,7 @@ final class PetView: NSView {
     }
 }
 
-final class Companion: NSObject, NSApplicationDelegate {
+final class Companion: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let artwork: Artwork
     let settings = UserDefaults.standard
     var panel: PetPanel!
@@ -238,6 +239,7 @@ final class Companion: NSObject, NSApplicationDelegate {
     }
     func makeMenu() -> NSMenu {
         let menu = NSMenu()
+        menu.delegate = self
         let title = NSMenuItem(title: "Huhu · 呼呼", action: nil, keyEquivalent: "")
         title.isEnabled = false; menu.addItem(title)
         menu.addItem(item(panel.isVisible ? "Hide Huhu" : "Show Huhu", action: #selector(toggleVisible)))
@@ -263,11 +265,49 @@ final class Companion: NSObject, NSApplicationDelegate {
         size.submenu = sizeMenu; menu.addItem(size)
         menu.addItem(item("Reset position", action: #selector(resetPosition)))
         menu.addItem(.separator())
+        menu.addItem(item("Run at startup", action: #selector(toggleStartup), tag: 900))
+        menu.addItem(item("Approve in Login Items…", action: #selector(openLoginItems), tag: 901))
+        updateStartupMenu(menu)
+        menu.addItem(.separator())
         menu.addItem(item("How to play", action: #selector(showHelp)))
         menu.addItem(item("Quit Huhu", action: #selector(quit)))
         return menu
     }
     func refreshMenu() { if status != nil { status.menu = makeMenu() } }
+    func menuNeedsUpdate(_ menu: NSMenu) { updateStartupMenu(menu) }
+    func updateStartupMenu(_ menu: NSMenu) {
+        let state = SMAppService.mainApp.status
+        menu.item(withTag: 900)?.state = state == .enabled ? .on : state == .requiresApproval ? .mixed : .off
+        menu.item(withTag: 901)?.isHidden = state != .requiresApproval
+    }
+    @objc func toggleStartup() {
+        do {
+            switch SMAppService.mainApp.status {
+            case .enabled, .requiresApproval:
+                try SMAppService.mainApp.unregister()
+            default:
+                try SMAppService.mainApp.register()
+                if SMAppService.mainApp.status == .requiresApproval {
+                    let alert = NSAlert()
+                    alert.messageText = "Allow Huhu to open at login"
+                    alert.informativeText = "macOS needs your approval in System Settings → General → Login Items."
+                    alert.addButton(withTitle: "Open Login Items")
+                    alert.addButton(withTitle: "Later")
+                    NSApp.activate(ignoringOtherApps: true)
+                    if alert.runModal() == .alertFirstButtonReturn { openLoginItems() }
+                }
+            }
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Couldn’t change Run at startup"
+            alert.informativeText = "\(error.localizedDescription)\n\nIf you’re running Huhu from a disk image, install it in Applications first."
+            alert.addButton(withTitle: "OK")
+            NSApp.activate(ignoringOtherApps: true)
+            alert.runModal()
+        }
+        refreshMenu()
+    }
+    @objc func openLoginItems() { SMAppService.openSystemSettingsLoginItems() }
     @objc func toggleVisible() {
         if panel.isVisible { panel.orderOut(nil) } else { panel.orderFrontRegardless() }
         refreshMenu()
@@ -327,12 +367,38 @@ func selfTest(_ art: Artwork) throws {
     if !failures.isEmpty { exit(1) }
 }
 
+func startupSelfTest() throws {
+    let service = SMAppService.mainApp
+    let initial = service.status
+    guard initial == .notRegistered || initial == .notFound else {
+        print("{\"ok\":true,\"skipped\":\"Existing login preference left unchanged\"}")
+        return
+    }
+    var needsCleanup = true
+    defer { if needsCleanup { try? service.unregister() } }
+    try service.register()
+    let registered = service.status
+    guard registered == .enabled || registered == .requiresApproval else {
+        throw NSError(domain: "HuhuStartupTest", code: 1,
+                      userInfo: [NSLocalizedDescriptionKey: "Registration did not reach enabled or approval-pending state."])
+    }
+    try service.unregister()
+    guard service.status == .notRegistered || service.status == .notFound else {
+        throw NSError(domain: "HuhuStartupTest", code: 2,
+                      userInfo: [NSLocalizedDescriptionKey: "Startup registration was not removed."])
+    }
+    needsCleanup = false
+    print("{\"ok\":true,\"registration\":\"passed\",\"unregistration\":\"passed\",\"preferenceRestored\":true}")
+}
+
 let app = NSApplication.shared
 do {
     let url = Bundle.main.url(forResource: "Huhu", withExtension: "png")
         ?? URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? "Huhu.png")
     let art = try Artwork(url: url)
-    if CommandLine.arguments.contains("--self-test") {
+    if CommandLine.arguments.contains("--startup-self-test") {
+        try startupSelfTest()
+    } else if CommandLine.arguments.contains("--self-test") {
         try selfTest(art)
     } else {
         let companion = Companion(artwork: art)
@@ -340,7 +406,7 @@ do {
         withExtendedLifetime(companion) { app.run() }
     }
 } catch {
-    if CommandLine.arguments.contains("--self-test") {
+    if CommandLine.arguments.contains("--self-test") || CommandLine.arguments.contains("--startup-self-test") {
         fputs("\(error.localizedDescription)\n", stderr); exit(1)
     }
     let alert = NSAlert(error: error); alert.runModal(); exit(1)
