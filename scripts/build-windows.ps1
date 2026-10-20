@@ -10,6 +10,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Windows compilation failed' }
     $Test = Start-Process "$Dist/windows-x64/Huhu.exe" -ArgumentList '--self-test', "`"$Dist/validation/windows.json`"" -Wait -PassThru
     if ($Test.ExitCode -ne 0) { throw 'Artwork or gaze validation failed' }
+    $WindowsExe = (Resolve-Path (Join-Path $Dist 'windows-x64/Huhu.exe')).Path
+    Write-Host "Packaging executable: $WindowsExe"
+    Get-Item $WindowsExe | Select-Object FullName, Length
     $Nsis = if (Get-Command makensis.exe -ErrorAction SilentlyContinue) { 'makensis.exe' } else { "${env:ProgramFiles(x86)}/NSIS/makensis.exe" }
     & $Nsis /V3 "/DSOURCE_DIR=$Root" "/DDIST_DIR=$Dist" installer.nsi
     if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed' }

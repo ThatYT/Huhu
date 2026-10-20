@@ -9,13 +9,13 @@ Unicode true
   !define DIST_DIR "..\dist"
 !endif
 Name "Huhu"
-OutFile "${DIST_DIR}/Huhu-1.0.0-windows-x64-setup.exe"
+OutFile "${DIST_DIR}\Huhu-1.0.0-windows-x64-setup.exe"
 InstallDir "$LOCALAPPDATA\Programs\Huhu"
 InstallDirRegKey HKCU "Software\Huhu" "InstallDir"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
-Icon "${SOURCE_DIR}/assets/Huhu.ico"
-UninstallIcon "${SOURCE_DIR}/assets/Huhu.ico"
+Icon "${SOURCE_DIR}\assets\Huhu.ico"
+UninstallIcon "${SOURCE_DIR}\assets\Huhu.ico"
 VIProductVersion "1.0.0.0"
 VIAddVersionKey /LANG=1033 "ProductName" "Huhu"
 VIAddVersionKey /LANG=1033 "FileDescription" "Huhu Setup"
@@ -51,11 +51,11 @@ Section "Huhu"
     Sleep 400
   ${EndIf}
   SetOutPath "$INSTDIR"
-  File "${DIST_DIR}/windows-x64/Huhu.exe"
-  File "${SOURCE_DIR}/README.md"
-  File "${SOURCE_DIR}/THIRD_PARTY_NOTICES.md"
+  File "${DIST_DIR}\windows-x64\Huhu.exe"
+  File "${SOURCE_DIR}\README.md"
+  File "${SOURCE_DIR}\THIRD_PARTY_NOTICES.md"
   SetOutPath "$INSTDIR\licenses"
-  File "${SOURCE_DIR}/licenses/*"
+  File "${SOURCE_DIR}\licenses\*"
   SetOutPath "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   CreateDirectory "$SMPROGRAMS\Huhu"
