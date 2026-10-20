@@ -1,0 +1,94 @@
+name: Build Huhu
+on:
+  push:
+    branches: [main]
+    tags: ['v1.0.0']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: Publish the 1.0.0 release after both builds pass
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test animation logic
+        run: |
+          clang++ -std=c++17 -Wall -Wextra -Werror scripts/test-animation.cpp -o /tmp/huhu-animation-test
+          /tmp/huhu-animation-test
+      - name: Build universal Mac app and packages
+        run: bash scripts/build-macos.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: huhu-macos
+          if-no-files-found: error
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/validation/*.json
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+      - name: Install NSIS
+        run: choco install nsis --yes --no-progress
+      - name: Test animation logic
+        shell: cmd
+        run: |
+          cl /nologo /EHsc /std:c++17 scripts\test-animation.cpp /Fe:animation-test.exe
+          if errorlevel 1 exit /b 1
+          animation-test.exe
+      - name: Build Windows app and installer
+        shell: pwsh
+        run: ./scripts/build-windows.ps1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: huhu-windows
+          if-no-files-found: error
+          path: |
+            dist/*setup.exe
+            dist/*.zip
+            dist/validation/*.json
+
+  release:
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.create_release)
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: huhu-*
+          merge-multiple: true
+          path: dist
+      - name: Checksums
+        run: python3 scripts/checksums.py dist
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" --clobber dist/*.dmg dist/*.exe dist/*.zip dist/SHA256SUMS.txt
+            gh release edit "$RELEASE_TAG" --draft=false --latest
+          else
+            gh release create "$RELEASE_TAG" --target "$COMMIT_SHA" --latest --title "Huhu 1.0.0" --notes-file RELEASE_NOTES.md dist/*.dmg dist/*.exe dist/*.zip dist/SHA256SUMS.txt
+          fi

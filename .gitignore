@@ -1,0 +1,12 @@
+dist/
+build/
+*.obj
+*.res
+*.res.o
+*.pdb
+.DS_Store
+Thumbs.db
+*.p12
+*.pfx
+*.key
+.env
