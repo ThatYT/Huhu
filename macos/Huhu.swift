@@ -22,20 +22,26 @@ func lookDirection(dx: Double, dy: Double) -> Int {
     return Int((turn / (.pi / 8)).rounded()) % 16
 }
 
-// Uses the same entry/cooldown policy as Windows, driven by monotonic seconds.
+// Uses the same queued hover sequence as Windows, driven by monotonic seconds.
 struct Behavior {
-    var inside = false
+    var inside = false, thinkPending = false
+    var jumpsPending = 0
     var nextGreeting = 0.0, nextThink = 0.0
+    mutating func cancel() { jumpsPending = 0; thinkPending = false }
     mutating func update(now: Double, over: Bool, enabled: Bool, busy: Bool,
-                         delay: Double, jump: Bool) -> Int? {
+                         delay: Double, jumps: Int, interacting: Bool = false) -> Int? {
         let entered = over && !inside
         inside = over
-        if nextThink == 0 || !enabled || busy || over { nextThink = now + delay }
-        guard enabled && !busy else { return nil }
+        if nextThink == 0 || !enabled || busy || interacting || over { nextThink = now + delay }
+        if !enabled || interacting || !over { cancel() }
+        guard enabled && !busy && !interacting else { return nil }
         if entered && now >= nextGreeting {
             nextGreeting = now + 8; nextThink = now + delay
-            return jump ? 4 : 3
+            jumpsPending = jumps == 3 ? 2 : 1; thinkPending = true
+            return 4
         }
+        if jumpsPending > 0 { jumpsPending -= 1; return 4 }
+        if thinkPending { thinkPending = false; return 7 }
         if !over && now >= nextThink { nextThink = now + delay; return 7 }
         return nil
     }
@@ -83,6 +89,7 @@ final class PetView: NSView {
     }
     override func mouseDown(with event: NSEvent) {
         guard let window else { return }
+        companion?.behavior.cancel()
         pressPoint = NSEvent.mouseLocation
         originalOrigin = window.frame.origin
         hasDragged = false
@@ -186,6 +193,7 @@ final class Companion: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let observer = displayObserver { NotificationCenter.default.removeObserver(observer) }
     }
     func play(row: Int) {
+        behavior.cancel()
         paused = false
         actionRow = row
         actionStarted = CACurrentMediaTime()
@@ -206,7 +214,8 @@ final class Companion: NSObject, NSApplicationDelegate, NSMenuDelegate {
             (actionRow.map { now - actionStarted < durations[$0].reduce(0, +) } ?? false)
         if let automatic = behavior.update(now: now, over: pointerOverBody(),
             enabled: panel.isVisible && !paused && !menuOpen && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
-            busy: busy, delay: Double.random(in: 20...45), jump: Bool.random()) {
+            busy: busy, delay: Double.random(in: 20...45), jumps: Int.random(in: 2...3),
+            interacting: dragging || (NSEvent.pressedMouseButtons & 1 != 0)) {
             actionRow = automatic; actionStarted = now
         }
         guard panel.isVisible, !paused else { return }
@@ -275,7 +284,7 @@ final class Companion: NSObject, NSApplicationDelegate, NSMenuDelegate {
         result.target = self; result.tag = tag
         return result
     }
-    func menuWillOpen(_ menu: NSMenu) { menuOpen = true }
+    func menuWillOpen(_ menu: NSMenu) { behavior.cancel(); menuOpen = true }
     func menuDidClose(_ menu: NSMenu) { menuOpen = false }
     func makeMenu() -> NSMenu {
         let menu = NSMenu()
@@ -349,6 +358,7 @@ final class Companion: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     @objc func openLoginItems() { SMAppService.openSystemSettingsLoginItems() }
     @objc func toggleVisible() {
+        behavior.cancel()
         if panel.isVisible { panel.orderOut(nil) } else { panel.orderFrontRegardless() }
         refreshMenu()
     }
@@ -359,6 +369,7 @@ final class Companion: NSObject, NSApplicationDelegate, NSMenuDelegate {
         followsPointer.toggle(); settings.set(followsPointer, forKey: "followPointer"); refreshMenu()
     }
     @objc func togglePause() {
+        behavior.cancel()
         paused.toggle(); if !paused { started = CACurrentMediaTime(); actionRow = nil }; refreshMenu()
     }
     @objc func changeSize(_ sender: NSMenuItem) {
@@ -371,7 +382,7 @@ final class Companion: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func showHelp() {
         let alert = NSAlert()
         alert.messageText = "Hello, I’m Huhu · 呼呼"
-        alert.informativeText = "Drag me to move. Click to wave, or double-click to jump.\n\nHover over me to wave or jump. I occasionally think while idle and look toward nearby pointers. Right-click me or use the paw in your menu bar for animations, size, pause, and quit.\n\nI run entirely on your Mac. No ChatGPT, login, internet, or API key needed."
+        alert.informativeText = "Drag me to move. Click to wave, or double-click to jump.\n\nHover over me for two or three jumps followed by thinking. I occasionally think while idle and look toward nearby pointers. Right-click me or use the paw in your menu bar for animations, size, pause, and quit.\n\nI run entirely on your Mac. No ChatGPT, login, internet, or API key needed."
         alert.addButton(withTitle: "Let’s play")
         NSApp.activate(ignoringOtherApps: true); alert.runModal()
     }
@@ -400,28 +411,59 @@ func selfTest(_ art: Artwork) throws {
             failures.append("Gaze mapping failed at \(direction)")
         }
     }
-    var behavior = Behavior()
-    if behavior.update(now: 100, over: false, enabled: true, busy: false, delay: 20, jump: false) != nil { failures.append("Initial idle") }
-    if behavior.update(now: 119, over: false, enabled: true, busy: false, delay: 20, jump: false) != nil { failures.append("No early thought") }
-    if behavior.update(now: 120, over: false, enabled: true, busy: false, delay: 20, jump: false) != 7 { failures.append("Idle thought") }
-    if behavior.update(now: 121, over: false, enabled: true, busy: true, delay: 20, jump: false) != nil { failures.append("Busy inhibits") }
-    if behavior.update(now: 122, over: true, enabled: true, busy: false, delay: 20, jump: false) != 3 { failures.append("Hover waves") }
-    if behavior.update(now: 140, over: true, enabled: true, busy: false, delay: 20, jump: true) != nil { failures.append("Stationary hover never repeats") }
-    if behavior.update(now: 141, over: false, enabled: true, busy: false, delay: 20, jump: false) != nil { failures.append("Leave") }
-    if behavior.update(now: 142, over: true, enabled: true, busy: false, delay: 20, jump: true) != 4 { failures.append("New entry jumps") }
-    if behavior.update(now: 143, over: false, enabled: true, busy: false, delay: 20, jump: false) != nil { failures.append("Leave again") }
-    if behavior.update(now: 144, over: true, enabled: true, busy: false, delay: 20, jump: true) != nil { failures.append("Cooldown inhibits") }
-    if behavior.update(now: 145, over: false, enabled: false, busy: false, delay: 20, jump: false) != nil { failures.append("Hidden paused or reduced motion inhibits") }
-    if behavior.update(now: 200, over: false, enabled: false, busy: false, delay: 20, jump: false) != nil { failures.append("Disabled time not idle") }
-    if behavior.update(now: 201, over: false, enabled: true, busy: false, delay: 20, jump: false) != nil { failures.append("No catchup on resume") }
-    if behavior.update(now: 220, over: false, enabled: true, busy: false, delay: 20, jump: false) != 7 { failures.append("Fresh idle after resume") }
-    if behavior.update(now: 221, over: true, enabled: true, busy: true, delay: 20, jump: false) != nil { failures.append("Dragging does not greet") }
-    if behavior.update(now: 222, over: true, enabled: true, busy: false, delay: 20, jump: false) != nil { failures.append("No delayed greeting after drag") }
-    if behavior.update(now: 223, over: false, enabled: true, busy: true, delay: 20, jump: false) != nil { failures.append("Manual animation resets idle") }
-    if behavior.update(now: 242, over: false, enabled: true, busy: false, delay: 20, jump: false) != nil { failures.append("No early thought after manual animation") }
-    if behavior.update(now: 243, over: false, enabled: true, busy: false, delay: 20, jump: false) != 7 { failures.append("Think after fresh idle") }
+    do { var behavior = Behavior()
+        if behavior.update(now: 100, over: true, enabled: true, busy: false, delay: 20, jumps: 2, interacting: false) != 4 { failures.append("Two jumps then think at 100") }
+        if behavior.update(now: 100.2, over: true, enabled: true, busy: true, delay: 20, jumps: 3, interacting: false) != nil { failures.append("Two jumps then think at 100.2") }
+        if behavior.update(now: 100.85, over: true, enabled: true, busy: false, delay: 20, jumps: 3, interacting: false) != 4 { failures.append("Two jumps then think at 100.85") }
+        if behavior.update(now: 101.1, over: true, enabled: true, busy: true, delay: 20, jumps: 3, interacting: false) != nil { failures.append("Two jumps then think at 101.1") }
+        if behavior.update(now: 101.7, over: true, enabled: true, busy: false, delay: 20, jumps: 3, interacting: false) != 7 { failures.append("Two jumps then think at 101.7") }
+        if behavior.update(now: 130, over: true, enabled: true, busy: false, delay: 20, jumps: 3, interacting: false) != nil { failures.append("Two jumps then think at 130") }
+        if behavior.update(now: 131, over: false, enabled: true, busy: false, delay: 20, jumps: 2, interacting: false) != nil { failures.append("Two jumps then think at 131") }
+        if behavior.update(now: 132, over: true, enabled: true, busy: false, delay: 20, jumps: 2, interacting: false) != 4 { failures.append("Two jumps then think at 132") }
+    }
+    do { var behavior = Behavior()
+        if behavior.update(now: 100, over: true, enabled: true, busy: false, delay: 20, jumps: 3, interacting: false) != 4 { failures.append("Three jumps then think at 100") }
+        if behavior.update(now: 100.85, over: true, enabled: true, busy: false, delay: 20, jumps: 2, interacting: false) != 4 { failures.append("Three jumps then think at 100.85") }
+        if behavior.update(now: 101.7, over: true, enabled: true, busy: false, delay: 20, jumps: 2, interacting: false) != 4 { failures.append("Three jumps then think at 101.7") }
+        if behavior.update(now: 102.55, over: true, enabled: true, busy: false, delay: 20, jumps: 2, interacting: false) != 7 { failures.append("Three jumps then think at 102.55") }
+        if behavior.update(now: 130, over: true, enabled: true, busy: false, delay: 20, jumps: 2, interacting: false) != nil { failures.append("Three jumps then think at 130") }
+    }
+    do { var behavior = Behavior()
+        if behavior.update(now: 100, over: true, enabled: true, busy: false, delay: 20, jumps: 3, interacting: false) != 4 { failures.append("Leave cancels and cooldown holds at 100") }
+        if behavior.update(now: 100.2, over: false, enabled: true, busy: true, delay: 20, jumps: 3, interacting: false) != nil { failures.append("Leave cancels and cooldown holds at 100.2") }
+        if behavior.update(now: 101, over: false, enabled: true, busy: false, delay: 20, jumps: 3, interacting: false) != nil { failures.append("Leave cancels and cooldown holds at 101") }
+        if behavior.update(now: 102, over: true, enabled: true, busy: false, delay: 20, jumps: 3, interacting: false) != nil { failures.append("Leave cancels and cooldown holds at 102") }
+        if behavior.update(now: 103, over: true, enabled: true, busy: false, delay: 20, jumps: 3, interacting: false) != nil { failures.append("Leave cancels and cooldown holds at 103") }
+    }
+    do { var behavior = Behavior()
+        if behavior.update(now: 100, over: true, enabled: true, busy: false, delay: 20, jumps: 3, interacting: false) != 4 { failures.append("Disable cancels at 100") }
+        if behavior.update(now: 100.2, over: true, enabled: false, busy: true, delay: 20, jumps: 3, interacting: false) != nil { failures.append("Disable cancels at 100.2") }
+        if behavior.update(now: 101, over: true, enabled: true, busy: false, delay: 20, jumps: 3, interacting: false) != nil { failures.append("Disable cancels at 101") }
+    }
+    do { var behavior = Behavior()
+        if behavior.update(now: 100, over: true, enabled: true, busy: false, delay: 20, jumps: 3, interacting: false) != 4 { failures.append("Drag cancels at 100") }
+        if behavior.update(now: 100.2, over: true, enabled: true, busy: true, delay: 20, jumps: 3, interacting: true) != nil { failures.append("Drag cancels at 100.2") }
+        if behavior.update(now: 101, over: true, enabled: true, busy: false, delay: 20, jumps: 3, interacting: false) != nil { failures.append("Drag cancels at 101") }
+    }
+    do { var behavior = Behavior()
+        if behavior.update(now: 100, over: false, enabled: true, busy: false, delay: 20, jumps: 2, interacting: false) != nil { failures.append("Idle and resume at 100") }
+        if behavior.update(now: 119, over: false, enabled: true, busy: false, delay: 20, jumps: 2, interacting: false) != nil { failures.append("Idle and resume at 119") }
+        if behavior.update(now: 120, over: false, enabled: true, busy: false, delay: 20, jumps: 2, interacting: false) != 7 { failures.append("Idle and resume at 120") }
+        if behavior.update(now: 121, over: false, enabled: true, busy: true, delay: 20, jumps: 2, interacting: false) != nil { failures.append("Idle and resume at 121") }
+        if behavior.update(now: 140, over: false, enabled: true, busy: false, delay: 20, jumps: 2, interacting: false) != nil { failures.append("Idle and resume at 140") }
+        if behavior.update(now: 141, over: false, enabled: true, busy: false, delay: 20, jumps: 2, interacting: false) != 7 { failures.append("Idle and resume at 141") }
+        if behavior.update(now: 142, over: false, enabled: false, busy: false, delay: 20, jumps: 2, interacting: false) != nil { failures.append("Idle and resume at 142") }
+        if behavior.update(now: 200, over: false, enabled: false, busy: false, delay: 20, jumps: 2, interacting: false) != nil { failures.append("Idle and resume at 200") }
+        if behavior.update(now: 201, over: false, enabled: true, busy: false, delay: 20, jumps: 2, interacting: false) != nil { failures.append("Idle and resume at 201") }
+        if behavior.update(now: 220, over: false, enabled: true, busy: false, delay: 20, jumps: 2, interacting: false) != 7 { failures.append("Idle and resume at 220") }
+    }
+    do { var behavior = Behavior()
+        if behavior.update(now: 100, over: true, enabled: true, busy: false, delay: 20, jumps: 3) != 4 { failures.append("Manual override setup") }
+        behavior.cancel()
+        if behavior.update(now: 101, over: true, enabled: true, busy: false, delay: 20, jumps: 3) != nil { failures.append("Manual override cancels queued moves") }
+    }
     let report: [String: Any] = ["ok": failures.isEmpty, "frames": art.cells.reduce(0) { $0 + $1.count },
-                                "gazeDirectionsChecked": 16, "behaviorScenariosChecked": 19, "errors": failures]
+                                "gazeDirectionsChecked": 16, "behaviorScenariosChecked": 36, "errors": failures]
     let data = try JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys])
     print(String(data: data, encoding: .utf8)!)
     if !failures.isEmpty { exit(1) }

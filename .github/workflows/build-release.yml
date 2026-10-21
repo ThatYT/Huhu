@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       create_release:
-        description: Publish the 1.2.0 release after both builds pass
+        description: Publish the 1.2.1 release after both builds pass
         type: boolean
         default: false
 
@@ -86,12 +86,12 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.2.0' }}
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.2.1' }}
           COMMIT_SHA: ${{ github.sha }}
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" --clobber dist/*.dmg dist/*.exe dist/*.zip dist/SHA256SUMS.txt
             gh release edit "$RELEASE_TAG" --draft=false --latest
           else
-            gh release create "$RELEASE_TAG" --target "$COMMIT_SHA" --latest --title "Huhu 1.2.0" --notes-file RELEASE_NOTES.md dist/*.dmg dist/*.exe dist/*.zip dist/SHA256SUMS.txt
+            gh release create "$RELEASE_TAG" --target "$COMMIT_SHA" --latest --title "Huhu 1.2.1" --notes-file RELEASE_NOTES.md dist/*.dmg dist/*.exe dist/*.zip dist/SHA256SUMS.txt
           fi

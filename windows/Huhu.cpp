@@ -43,6 +43,7 @@ struct App {
     int action=-1,dragRow=1;
     bool menuOpen=false;
     huhu::Behavior behavior;
+    huhu::DragDirection dragDirection;
     std::mt19937 random{std::random_device{}()};
     POINT press{},original{};
     ULONGLONG started=GetTickCount64(),actionStart=0;
@@ -130,7 +131,7 @@ struct App {
         int automatic=behavior.update(clock/1000.0,pointerOverBody(),
             visible && !paused && !reducedMotion && !menuOpen,busy,
             std::uniform_real_distribution<double>(20,45)(random),
-            std::uniform_int_distribution<int>(0,1)(random)!=0);
+            std::uniform_int_distribution<int>(2,3)(random),dragging || pressed);
         if(automatic>=0) {action=automatic;actionStart=clock;}
         if(!visible || paused) return;
         auto now=GetTickCount64(); int row=0,column=0;
@@ -151,7 +152,7 @@ struct App {
         if(reducedMotion) row=column=0;
         if(lastRow!=row || lastCol!=column) render(row,column);
     }
-    void play(int row) {paused=false;visible=true;ShowWindow(window,SW_SHOWNOACTIVATE);action=row;actionStart=GetTickCount64();tick();}
+    void play(int row) {behavior.cancel();paused=false;visible=true;ShowWindow(window,SW_SHOWNOACTIVATE);action=row;actionStart=GetTickCount64();tick();}
     void clamp() {
         MONITORINFO monitor{};monitor.cbSize=sizeof(monitor);GetMonitorInfoW(MonitorFromWindow(window,MONITOR_DEFAULTTONEAREST),&monitor);
         RECT r{};GetWindowRect(window,&r);
@@ -172,9 +173,9 @@ struct App {
     void command(int id) {
         if(id>=101 && id<=108) {play(id-100);return;}
         switch(id) {
-        case ShowHide: visible=!visible;ShowWindow(window,visible?SW_SHOWNOACTIVATE:SW_HIDE);break;
+        case ShowHide: behavior.cancel();visible=!visible;ShowWindow(window,visible?SW_SHOWNOACTIVATE:SW_HIDE);break;
         case Follow:follow=!follow;save();break;
-        case Pause:paused=!paused;if(!paused) {started=GetTickCount64();action=-1;}break;
+        case Pause:behavior.cancel();paused=!paused;if(!paused) {started=GetTickCount64();action=-1;}break;
         case Small:case Medium:case Large: {
             RECT r{};GetWindowRect(window,&r);int oldW=width,oldH=height;
             scale=id==Small?.85:id==Medium?1.2:1.6;surface();
@@ -195,7 +196,7 @@ struct App {
             }
             break;
         }
-        case Help:MessageBoxW(window,L"Drag to move. Click to wave. Double-click to jump.\n\nHover over Huhu to wave or jump. Huhu occasionally thinks while idle and looks toward nearby pointers. Right-click or use the tray icon for size, pause, hide, and quit.\n\nNo ChatGPT, login, internet, or API key needed.",L"Huhu · 呼呼",MB_OK|MB_ICONINFORMATION);break;
+        case Help:MessageBoxW(window,L"Drag to move. Click to wave. Double-click to jump.\n\nHover over Huhu for two or three jumps followed by thinking. Huhu occasionally thinks while idle and looks toward nearby pointers. Right-click or use the tray icon for size, pause, hide, and quit.\n\nNo ChatGPT, login, internet, or API key needed.",L"Huhu · 呼呼",MB_OK|MB_ICONINFORMATION);break;
         case Quit:DestroyWindow(window);break;
         }
     }
@@ -220,7 +221,7 @@ struct App {
         AppendMenuW(m,MF_SEPARATOR,0,nullptr);
         AppendMenuW(m,MF_STRING,Help,L"How to play");AppendMenuW(m,MF_STRING,Quit,L"Quit Huhu");
         POINT point{};GetCursorPos(&point);SetForegroundWindow(window);
-        menuOpen=true;
+        behavior.cancel();menuOpen=true;
         int chosen=TrackPopupMenu(m,TPM_RETURNCMD|TPM_RIGHTBUTTON,point.x,point.y,0,window,nullptr);
         menuOpen=false;
         PostMessageW(window,WM_NULL,0,0);DestroyMenu(m);if(chosen) command(chosen);
@@ -238,11 +239,12 @@ LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM wp,LPARAM lp) {
     case WM_MOUSEACTIVATE:return MA_NOACTIVATE;
     case WM_TIMER:a.tick();return 0;
     case WM_LBUTTONDOWN: {
-        a.pressed=true;a.dragging=false;GetCursorPos(&a.press);RECT r{};GetWindowRect(window,&r);a.original={r.left,r.top};SetCapture(window);return 0;
+        a.pressed=true;a.dragging=false;GetCursorPos(&a.press);a.dragDirection.reset(a.press.x);a.behavior.cancel();RECT r{};GetWindowRect(window,&r);a.original={r.left,r.top};SetCapture(window);return 0;
     }
     case WM_MOUSEMOVE:if(a.pressed) {
         POINT p{};GetCursorPos(&p);int dx=p.x-a.press.x,dy=p.y-a.press.y;
-        if(a.dragging || std::hypot(dx,dy)>3) {a.dragging=true;a.dragRow=dx<0?2:1;
+        a.dragRow=a.dragDirection.update(p.x);
+        if(a.dragging || std::hypot(dx,dy)>3) {a.dragging=true;
             SetWindowPos(window,HWND_TOPMOST,a.original.x+dx,a.original.y+dy,0,0,SWP_NOSIZE|SWP_NOACTIVATE);}
     }return 0;
     case WM_LBUTTONUP:if(a.pressed) {

@@ -11,5 +11,5 @@ x86_64-w64-mingw32-g++ -std=c++17 -O2 -Wall -Wextra -municode -mwindows \
 makensis -V3 -DSOURCE_DIR="$ROOT" -DDIST_DIR="$DIST" installer.nsi
 cp "$ROOT/README.md" "$ROOT/THIRD_PARTY_NOTICES.md" "$DIST/windows-x64/"
 cp -R "$ROOT/licenses" "$DIST/windows-x64/"
-(cd "$DIST/windows-x64" && 7zz a -tzip "$DIST/Huhu-1.2.0-windows-x64-portable.zip" Huhu.exe README.md THIRD_PARTY_NOTICES.md licenses >/dev/null)
+(cd "$DIST/windows-x64" && 7zz a -tzip "$DIST/Huhu-1.2.1-windows-x64-portable.zip" Huhu.exe README.md THIRD_PARTY_NOTICES.md licenses >/dev/null)
 printf 'Built Windows x64 executable and installer in %s\n' "$DIST"
