@@ -22,9 +22,29 @@ func lookDirection(dx: Double, dy: Double) -> Int {
     return Int((turn / (.pi / 8)).rounded()) % 16
 }
 
+// Uses the same entry/cooldown policy as Windows, driven by monotonic seconds.
+struct Behavior {
+    var inside = false
+    var nextGreeting = 0.0, nextThink = 0.0
+    mutating func update(now: Double, over: Bool, enabled: Bool, busy: Bool,
+                         delay: Double, jump: Bool) -> Int? {
+        let entered = over && !inside
+        inside = over
+        if nextThink == 0 || !enabled || busy || over { nextThink = now + delay }
+        guard enabled && !busy else { return nil }
+        if entered && now >= nextGreeting {
+            nextGreeting = now + 8; nextThink = now + delay
+            return jump ? 4 : 3
+        }
+        if !over && now >= nextThink { nextThink = now + delay; return 7 }
+        return nil
+    }
+}
+
 final class Artwork {
     let sheet: CGImage
     let cells: [[NSImage]]
+    let restingMask: NSBitmapImageRep
     init(url: URL) throws {
         guard let image = NSImage(contentsOf: url),
               let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
@@ -32,6 +52,7 @@ final class Artwork {
             throw NSError(domain: "Huhu", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "Huhu’s artwork is missing or damaged."])
         }
+        restingMask = NSBitmapImageRep(cgImage: cg.cropping(to: CGRect(x: 0, y: 0, width: 192, height: 208))!)
         sheet = cg
         cells = frameCounts.enumerated().map { row, count in
             (0..<count).map { column in
@@ -108,6 +129,8 @@ final class Companion: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var lastCell = (-1, -1)
     var followsPointer: Bool
     var paused = false
+    var menuOpen = false
+    var behavior = Behavior()
     var scale: Double
 
     init(artwork: Artwork) {
@@ -169,9 +192,24 @@ final class Companion: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refreshMenu()
         tick()
     }
+    func pointerOverBody() -> Bool {
+        let mouse = NSEvent.mouseLocation
+        let x = Int((mouse.x - panel.frame.minX) / panel.frame.width * 192)
+        let y = Int((panel.frame.maxY - mouse.y) / panel.frame.height * 208)
+        guard panel.frame.contains(mouse), x >= 0, y >= 0, x < 192, y < 208 else { return false }
+        return (artwork.restingMask.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 32.0 / 255
+    }
     func tick() {
-        guard panel != nil, panel.isVisible, !paused else { return }
+        guard panel != nil else { return }
         let now = CACurrentMediaTime()
+        let busy = dragging || (NSEvent.pressedMouseButtons & 1 != 0) ||
+            (actionRow.map { now - actionStarted < durations[$0].reduce(0, +) } ?? false)
+        if let automatic = behavior.update(now: now, over: pointerOverBody(),
+            enabled: panel.isVisible && !paused && !menuOpen && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+            busy: busy, delay: Double.random(in: 20...45), jump: Bool.random()) {
+            actionRow = automatic; actionStarted = now
+        }
+        guard panel.isVisible, !paused else { return }
         var row = 0, column = 0
         if dragging {
             row = dragRow
@@ -237,6 +275,8 @@ final class Companion: NSObject, NSApplicationDelegate, NSMenuDelegate {
         result.target = self; result.tag = tag
         return result
     }
+    func menuWillOpen(_ menu: NSMenu) { menuOpen = true }
+    func menuDidClose(_ menu: NSMenu) { menuOpen = false }
     func makeMenu() -> NSMenu {
         let menu = NSMenu()
         menu.delegate = self
@@ -331,7 +371,7 @@ final class Companion: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func showHelp() {
         let alert = NSAlert()
         alert.messageText = "Hello, I’m Huhu · 呼呼"
-        alert.informativeText = "Drag me to move. Click to wave, or double-click to jump.\n\nI look toward nearby pointers. Right-click me or use the paw in your menu bar for animations, size, pause, and quit.\n\nI run entirely on your Mac. No ChatGPT, login, internet, or API key needed."
+        alert.informativeText = "Drag me to move. Click to wave, or double-click to jump.\n\nHover over me to wave or jump. I occasionally think while idle and look toward nearby pointers. Right-click me or use the paw in your menu bar for animations, size, pause, and quit.\n\nI run entirely on your Mac. No ChatGPT, login, internet, or API key needed."
         alert.addButton(withTitle: "Let’s play")
         NSApp.activate(ignoringOtherApps: true); alert.runModal()
     }
@@ -360,8 +400,28 @@ func selfTest(_ art: Artwork) throws {
             failures.append("Gaze mapping failed at \(direction)")
         }
     }
+    var behavior = Behavior()
+    if behavior.update(now: 100, over: false, enabled: true, busy: false, delay: 20, jump: false) != nil { failures.append("Initial idle") }
+    if behavior.update(now: 119, over: false, enabled: true, busy: false, delay: 20, jump: false) != nil { failures.append("No early thought") }
+    if behavior.update(now: 120, over: false, enabled: true, busy: false, delay: 20, jump: false) != 7 { failures.append("Idle thought") }
+    if behavior.update(now: 121, over: false, enabled: true, busy: true, delay: 20, jump: false) != nil { failures.append("Busy inhibits") }
+    if behavior.update(now: 122, over: true, enabled: true, busy: false, delay: 20, jump: false) != 3 { failures.append("Hover waves") }
+    if behavior.update(now: 140, over: true, enabled: true, busy: false, delay: 20, jump: true) != nil { failures.append("Stationary hover never repeats") }
+    if behavior.update(now: 141, over: false, enabled: true, busy: false, delay: 20, jump: false) != nil { failures.append("Leave") }
+    if behavior.update(now: 142, over: true, enabled: true, busy: false, delay: 20, jump: true) != 4 { failures.append("New entry jumps") }
+    if behavior.update(now: 143, over: false, enabled: true, busy: false, delay: 20, jump: false) != nil { failures.append("Leave again") }
+    if behavior.update(now: 144, over: true, enabled: true, busy: false, delay: 20, jump: true) != nil { failures.append("Cooldown inhibits") }
+    if behavior.update(now: 145, over: false, enabled: false, busy: false, delay: 20, jump: false) != nil { failures.append("Hidden paused or reduced motion inhibits") }
+    if behavior.update(now: 200, over: false, enabled: false, busy: false, delay: 20, jump: false) != nil { failures.append("Disabled time not idle") }
+    if behavior.update(now: 201, over: false, enabled: true, busy: false, delay: 20, jump: false) != nil { failures.append("No catchup on resume") }
+    if behavior.update(now: 220, over: false, enabled: true, busy: false, delay: 20, jump: false) != 7 { failures.append("Fresh idle after resume") }
+    if behavior.update(now: 221, over: true, enabled: true, busy: true, delay: 20, jump: false) != nil { failures.append("Dragging does not greet") }
+    if behavior.update(now: 222, over: true, enabled: true, busy: false, delay: 20, jump: false) != nil { failures.append("No delayed greeting after drag") }
+    if behavior.update(now: 223, over: false, enabled: true, busy: true, delay: 20, jump: false) != nil { failures.append("Manual animation resets idle") }
+    if behavior.update(now: 242, over: false, enabled: true, busy: false, delay: 20, jump: false) != nil { failures.append("No early thought after manual animation") }
+    if behavior.update(now: 243, over: false, enabled: true, busy: false, delay: 20, jump: false) != 7 { failures.append("Think after fresh idle") }
     let report: [String: Any] = ["ok": failures.isEmpty, "frames": art.cells.reduce(0) { $0 + $1.count },
-                                "gazeDirectionsChecked": 16, "errors": failures]
+                                "gazeDirectionsChecked": 16, "behaviorScenariosChecked": 19, "errors": failures]
     let data = try JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys])
     print(String(data: data, encoding: .utf8)!)
     if !failures.isEmpty { exit(1) }

@@ -8,9 +8,9 @@ A little plush white tiger for your desktop. Native macOS and Windows apps, with
 
 ## Install
 
-**Mac:** Open `Huhu-1.1.0-macos-universal.dmg`, drag Huhu into Applications, then open it. Supports Apple Silicon and Intel Macs on macOS 13 or later. Use the paw in the menu bar to hide/show or quit.
+**Mac:** Open `Huhu-1.2.0-macos-universal.dmg`, drag Huhu into Applications, then open it. Supports Apple Silicon and Intel Macs on macOS 13 or later. Use the paw in the menu bar to hide/show or quit.
 
-**Windows:** Run `Huhu-1.1.0-windows-x64-setup.exe`. Installs for your Windows user into `%LOCALAPPDATA%\Programs\Huhu`, adds Start Menu shortcuts, and registers an uninstaller in Windows Settings. No administrator installation is required. Supports Windows 10 (1703 or later) and Windows 11, x64. Use the Huhu icon in the notification area (possibly under the hidden-icons arrow) to hide/show or quit.
+**Windows:** Run `Huhu-1.2.0-windows-x64-setup.exe`. Installs for your Windows user into `%LOCALAPPDATA%\Programs\Huhu`, adds Start Menu shortcuts, and registers an uninstaller in Windows Settings. No administrator installation is required. Supports Windows 10 (1703 or later) and Windows 11, x64. Use the Huhu icon in the notification area (possibly under the hidden-icons arrow) to hide/show or quit.
 
 Portable ZIPs are also available. Extract the ZIP before running the app. Startup is off by default. To open Huhu automatically after signing in, turn on **Run at startup** in its right-click menu or menu-bar/tray menu. On Mac, install Huhu in Applications first; macOS may ask you to approve it in Login Items. Windows Settings can also disable startup apps independently. Turn the toggle off to remove Huhu’s startup registration. Windows uninstall removes the startup entry for that installed copy.
 
@@ -20,6 +20,8 @@ These initial packages are development builds: Windows is not Authenticode-signe
 
 - Drag Huhu to move; its position is remembered.
 - Click to wave; double-click to jump.
+- Hover over Huhu’s body to get a wave or jump. Greetings have an eight-second cooldown; move away and return for another greeting.
+- While idle, Huhu occasionally thinks (after a random 20–45 seconds). Hovering, dragging, and other animations reset the idle interval. Pause, hide, menus, and reduced motion suppress automatic reactions.
 - Move your pointer nearby and Huhu looks toward it.
 - Right-click Huhu or use its menu/tray icon for more animations, pointer-following, pause/resume, size, reset position, hide/show, and quit.
 - System reduced-motion preferences use a still resting frame.

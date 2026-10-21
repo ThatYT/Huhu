@@ -1,10 +1,9 @@
-# Huhu 1.1.0
+# Huhu 1.2.0
 
-- Added **Run at startup** to Huhu’s right-click and menu-bar/tray menus on Mac and Windows.
-- Startup is opt-in and off by default. Turn it on to open Huhu after signing in; turn it off to remove the registration.
-- Mac uses native Login Items and guides you to System Settings when approval is needed. Install Huhu in Applications before enabling.
-- Windows uses a per-user startup entry with a quoted executable path. Uninstall removes the entry for that installed copy.
-- Added Windows startup enable/disable and uninstall-cleanup checks to CI.
+- Hover over Huhu’s body for a randomly chosen wave or jump. Move away and return for another greeting, with an eight-second cooldown.
+- Huhu occasionally plays **Think** after 20–45 seconds of idle time. Interacting resets the idle interval.
+- Automatic animations respect pause, hide, open menus, and system reduced-motion settings. They do not interrupt dragging or another animation.
+- Added matching Mac and Windows behavior tests for hover entries, cooldowns, idle timing, and suppression.
 
 The release includes a universal Mac DMG and ZIP, Windows x64 Setup EXE and portable ZIP, and SHA-256 checksums. GitHub's automatic source archives contain the complete project.
 

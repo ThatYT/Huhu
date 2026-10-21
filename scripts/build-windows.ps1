@@ -18,5 +18,5 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed' }
     Copy-Item "$Root/README.md", "$Root/THIRD_PARTY_NOTICES.md" "$Dist/windows-x64/"
     Copy-Item "$Root/licenses" "$Dist/windows-x64/" -Recurse -Force
-    Compress-Archive -Path "$Dist/windows-x64/Huhu.exe", "$Dist/windows-x64/README.md", "$Dist/windows-x64/THIRD_PARTY_NOTICES.md", "$Dist/windows-x64/licenses" -DestinationPath "$Dist/Huhu-1.1.0-windows-x64-portable.zip" -Force
+    Compress-Archive -Path "$Dist/windows-x64/Huhu.exe", "$Dist/windows-x64/README.md", "$Dist/windows-x64/THIRD_PARTY_NOTICES.md", "$Dist/windows-x64/licenses" -DestinationPath "$Dist/Huhu-1.2.0-windows-x64-portable.zip" -Force
 } finally { Pop-Location }

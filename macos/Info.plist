@@ -4,8 +4,8 @@
 <key>CFBundleName</key><string>Huhu</string>
 <key>CFBundleDisplayName</key><string>Huhu · 呼呼</string>
 <key>CFBundleIdentifier</key><string>local.huhu.desktop</string>
-<key>CFBundleVersion</key><string>2</string>
-<key>CFBundleShortVersionString</key><string>1.1.0</string>
+<key>CFBundleVersion</key><string>3</string>
+<key>CFBundleShortVersionString</key><string>1.2.0</string>
 <key>CFBundleExecutable</key><string>Huhu</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleIconFile</key><string>Huhu</string>

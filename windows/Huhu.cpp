@@ -17,6 +17,8 @@
 #include <string>
 #include "Animation.h"
 #include "Startup.h"
+#include "Behavior.h"
+#include <random>
 
 using namespace Gdiplus;
 constexpr wchar_t windowClass[]=L"HuhuDesktopCompanion";
@@ -39,6 +41,9 @@ struct App {
     double scale=1.2;
     bool follow=true,paused=false,visible=true,dragging=false,pressed=false,reducedMotion=false;
     int action=-1,dragRow=1;
+    bool menuOpen=false;
+    huhu::Behavior behavior;
+    std::mt19937 random{std::random_device{}()};
     POINT press{},original{};
     ULONGLONG started=GetTickCount64(),actionStart=0;
     std::wstring ini;
@@ -111,7 +116,22 @@ struct App {
         bool result=UpdateLayeredWindow(window,nullptr,&position,&size,memoryDC,&source,0,&blend,ULW_ALPHA)!=FALSE;
         lastRow=row;lastCol=column; return result;
     }
+    bool pointerOverBody() {
+        POINT mouse{}; RECT rect{};
+        if(!GetCursorPos(&mouse) || !GetWindowRect(window,&rect)) return false;
+        int x=mouse.x-rect.left,y=mouse.y-rect.top;
+        if(x<0 || y<0 || x>=width || y>=height) return false;
+        Color pixel;
+        return art->GetPixel(x*192/width,y*208/height,&pixel)==Ok && pixel.GetAlpha()>32;
+    }
     void tick() {
+        auto clock=GetTickCount64();
+        bool busy=dragging || pressed || (action>=0 && (clock-actionStart)/1000.0<huhu::length(action));
+        int automatic=behavior.update(clock/1000.0,pointerOverBody(),
+            visible && !paused && !reducedMotion && !menuOpen,busy,
+            std::uniform_real_distribution<double>(20,45)(random),
+            std::uniform_int_distribution<int>(0,1)(random)!=0);
+        if(automatic>=0) {action=automatic;actionStart=clock;}
         if(!visible || paused) return;
         auto now=GetTickCount64(); int row=0,column=0;
         if(dragging) {row=dragRow;column=huhu::frame((now-started)/1000.0,row);}
@@ -175,7 +195,7 @@ struct App {
             }
             break;
         }
-        case Help:MessageBoxW(window,L"Drag to move. Click to wave. Double-click to jump.\n\nHuhu looks toward nearby pointers. Right-click or use the tray icon for size, pause, hide, and quit.\n\nNo ChatGPT, login, internet, or API key needed.",L"Huhu · 呼呼",MB_OK|MB_ICONINFORMATION);break;
+        case Help:MessageBoxW(window,L"Drag to move. Click to wave. Double-click to jump.\n\nHover over Huhu to wave or jump. Huhu occasionally thinks while idle and looks toward nearby pointers. Right-click or use the tray icon for size, pause, hide, and quit.\n\nNo ChatGPT, login, internet, or API key needed.",L"Huhu · 呼呼",MB_OK|MB_ICONINFORMATION);break;
         case Quit:DestroyWindow(window);break;
         }
     }
@@ -200,7 +220,9 @@ struct App {
         AppendMenuW(m,MF_SEPARATOR,0,nullptr);
         AppendMenuW(m,MF_STRING,Help,L"How to play");AppendMenuW(m,MF_STRING,Quit,L"Quit Huhu");
         POINT point{};GetCursorPos(&point);SetForegroundWindow(window);
+        menuOpen=true;
         int chosen=TrackPopupMenu(m,TPM_RETURNCMD|TPM_RIGHTBUTTON,point.x,point.y,0,window,nullptr);
+        menuOpen=false;
         PostMessageW(window,WM_NULL,0,0);DestroyMenu(m);if(chosen) command(chosen);
     }
 };
