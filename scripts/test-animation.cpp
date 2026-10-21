@@ -74,15 +74,25 @@ int main() {
     huhu::DragDirection drag;
     drag.reset(100);
     check(drag.update(90)==2,"Initial left drag");
-    check(drag.update(91)==1,"Slow right reversal before original press position");
-    check(drag.update(91)==1,"Vertical motion preserves right");
-    check(drag.update(90)==2,"One pixel left reversal");
-    check(drag.update(89)==2,"Continued slow left drag");
-    check(drag.update(95)==1,"Right reversal still left of start");
+    for(int x:{91,89,92,88,93,87,94,90,87})
+        check(drag.update(x)==2,"Jitter must preserve left direction");
+    for(int x=88;x<95;++x)
+        check(drag.update(x)==2,"Slow reversal accumulates without premature switch");
+    check(drag.update(95)==1,"Eight pixel right reversal before original press position");
+    check(drag.update(95)==1,"Vertical motion preserves right");
+    check(drag.update(120)==1,"Right anchor follows the drag");
+    for(int x=119;x>112;--x)
+        check(drag.update(x)==1,"Slow left reversal retains right below threshold");
+    check(drag.update(112)==2,"Eight pixel left reversal above original press position");
+    for(int x:{113,111,114,110,115,109,116,109})
+        check(drag.update(x)==2,"Jitter after reversal must preserve left");
+    drag.reset(100,16);
+    check(drag.update(120)==1,"High DPI initial direction");
+    check(drag.update(105)==1,"High DPI scales the buffer");
+    check(drag.update(104)==2,"High DPI reversal at scaled threshold");
     drag.reset(100);
-    check(drag.update(110)==1,"Initial right drag");
-    check(drag.update(109)==2,"Slow left reversal still right of start");
-    check(drag.update(109)==2,"Vertical motion preserves left");
+    check(drag.update(100)==1,"New drag resets direction");
+    check(drag.update(99)==2,"New drag can initially move left");
 
     std::cout<<"Drag reversals, hover jump/think sequences, cooldown, idle scheduling, suppression, animation timing, loop boundaries and all16 gaze sectors passed.\n";
 }

@@ -239,7 +239,7 @@ LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM wp,LPARAM lp) {
     case WM_MOUSEACTIVATE:return MA_NOACTIVATE;
     case WM_TIMER:a.tick();return 0;
     case WM_LBUTTONDOWN: {
-        a.pressed=true;a.dragging=false;GetCursorPos(&a.press);a.dragDirection.reset(a.press.x);a.behavior.cancel();RECT r{};GetWindowRect(window,&r);a.original={r.left,r.top};SetCapture(window);return 0;
+        a.pressed=true;a.dragging=false;GetCursorPos(&a.press);a.dragDirection.reset(a.press.x,MulDiv(8,a.dpi,96));a.behavior.cancel();RECT r{};GetWindowRect(window,&r);a.original={r.left,r.top};SetCapture(window);return 0;
     }
     case WM_MOUSEMOVE:if(a.pressed) {
         POINT p{};GetCursorPos(&p);int dx=p.x-a.press.x,dy=p.y-a.press.y;

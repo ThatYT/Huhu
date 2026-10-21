@@ -21,13 +21,26 @@ struct Behavior {
         return -1;
     }
 };
-// Track successive screen coordinates, including one-pixel reversals.
+// Keep the old direction through small wobbles. The anchor follows the furthest
+// point in that direction, so a slow reversal need not cross the original press.
 struct DragDirection {
-    int previousX=0,row=1;
-    void reset(int x) {previousX=x;row=1;}
+    int anchorX=0,row=1,threshold=8;
+    bool determined=false;
+    void reset(int x,int distance=8) {
+        anchorX=x;row=1;threshold=distance>0?distance:1;determined=false;
+    }
     int update(int x) {
-        if(x!=previousX) row=x<previousX?2:1;
-        previousX=x;return row;
+        if(!determined) {
+            if(x==anchorX) return row;
+            row=x<anchorX?2:1;anchorX=x;determined=true;
+        } else if(row==1) {
+            if(x>anchorX) anchorX=x;
+            else if(anchorX-x>=threshold) {row=2;anchorX=x;}
+        } else {
+            if(x<anchorX) anchorX=x;
+            else if(x-anchorX>=threshold) {row=1;anchorX=x;}
+        }
+        return row;
     }
 };
 }

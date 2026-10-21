@@ -1,9 +1,9 @@
-# Huhu 1.2.1
+# Huhu 1.2.2
 
-- Fixed Windows run direction when reversing a drag: Huhu now follows the latest horizontal movement, including slow one-pixel changes, without needing to cross the drag’s starting point. Vertical movement keeps the last direction.
-- Hover over Huhu for a random two or three complete jumps, followed by Think. The sequence plays once per hover, with an eight-second cooldown before another entry can trigger it.
-- Leaving Huhu, dragging, choosing another animation, pausing, hiding, or opening a menu cancels queued hover moves. Reduced motion suppresses automatic animations.
-- Retained occasional idle thinking after 20–45 seconds, and added regression checks for drag reversals and hover sequences.
+- Stabilized Windows run direction during dragging: Huhu keeps facing the same way through small pointer wobbles, and switches after eight logical pixels of reverse movement.
+- The direction buffer follows the furthest point of the drag. Slow reversals work without crossing the original starting point, and the buffer scales with display DPI.
+- Added regression checks for repeated jitter, gradual reversals in both directions, vertical motion, new drags, and high-DPI scaling.
+- Hover still plays two or three jumps followed by Think; occasional idle thinking is unchanged.
 
 The release includes a universal Mac DMG and ZIP, Windows x64 Setup EXE and portable ZIP, and SHA-256 checksums. GitHub's automatic source archives contain the complete project.
 

@@ -1,12 +1,12 @@
 # Build and release
 
-Version: 1.2.1.
+Version: 1.2.2.
 
 ## Repository and workflow
 
 Repository: https://github.com/ThatYT/Huhu (public). This folder is the repository root. Keep the original pet workflow/reference-photo folders out of the repository.
 
-The workflow builds on pull requests, pushes to main, and manual runs. It builds Windows natively on a Windows runner (including artwork/gaze and startup-registration validation) and macOS universally on a Mac runner. Artifacts are retained for review. A `v1.2.1` tag or a manual run with **Publish the 1.2.1 release** selected publishes a GitHub Release after both platform builds pass. Manual runs without that option only build artifacts.
+The workflow builds on pull requests, pushes to main, and manual runs. It builds Windows natively on a Windows runner (including artwork/gaze and startup-registration validation) and macOS universally on a Mac runner. Artifacts are retained for review. A `v1.2.2` tag or a manual run with **Publish the 1.2.2 release** selected publishes a GitHub Release after both platform builds pass. Manual runs without that option only build artifacts.
 
 CI checks Windows installation, installed-app startup, artwork/gaze data, Start Menu registration, uninstall registration, and removal. Full manual Windows desktop interaction still needs checks for dragging, gaze, menus, scaling across monitors, and upgrades on supported Windows versions.
 
